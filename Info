@@ -1,0 +1,3 @@
+Firstly, user inputs values for the function to graph, gravitational field, drag constant and the mass of the marble/sphere. They then click a button which will check if the given values are correct. If they are, the function is graphed and the user can click anywhere on the screen to generate a marble/sphere. This marble will automatically situate itself on the graphed function and will move according to the simulated physics.
+
+We are grade 10 students with little to no experience in programming in python. However, we are passionate about physics and coding.
