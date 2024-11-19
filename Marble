@@ -8,212 +8,225 @@ import numpy as np
 import sympy as sp
 from sympy import *
 import re
+import sys
+
+pygame.init()
+
+# Window
+WIDTH, HEIGHT = 808, 600
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("Marble Drop")
+
+# Colors
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+RED = (255, 0, 0)
+GRAY = (192, 192, 192)
+DARKGRAY = (150, 150, 150)
+BTNHOVERCOL = (156, 230, 230)
+
+# Fonts
+font = pygame.font.SysFont("arial", 24)
+buttonfont = pygame.font.SysFont("moderno20", 28)
+titlefont = pygame.font.SysFont("arial", 52)
+
+# Settings Variable
+input_function = ""
+input_mass = ""
+input_drag = ""
+input_gravity = ""
+
+# Data box
+fxrect = pygame.Rect(75, 150, 417, 35)
+gravrect = pygame.Rect(272, 222, 222, 35)
+massrect = pygame.Rect(272, 322, 222, 35)
+dragrect = pygame.Rect(272, 422, 222, 35)
+buttonrect = pygame.Rect(556, 492, 202, 75)
+back_rect = pygame.Rect(590, 12, 200, 50)
+buttontext = buttonfont.render("Initiate Marble Drop", True, BLACK)
+text_rect = buttontext.get_rect(center=buttonrect.center)
+
+# Data
+functionactive = False
+gravityactive = False
+massactive = False
+dragactive = False
+inputstatus = ""
+
+# What is currently running
+draw = False
+notgraphing = True
+maingame = False
+
+# Final Values
+mass = ""
+gravity = ""
+drag = ""
+
+# Data box colors
+fxcol = RED
+gravcol = RED
+masscol = RED
+dragcol = RED
+btncol = DARKGRAY
+
+# MISC
+expression = None
+x = sp.symbols('x')
+adjust_x = 100
+adjust_y = 100
+
+circleimag = pygame.image.load("circleimag.png")
+circleimag = pygame.transform.scale(circleimag, (22, 22))
 
 
-def main():
+def drawbackground():
+    bgimage = pygame.image.load("background.jpg")
+    bgimage = pygame.transform.scale(bgimage, (WIDTH, HEIGHT))
+    screen.blit(bgimage, (0, 0))
+
+
+def fix(user_input):
+    user_input = re.sub(r'(?<=\d)([a-zA-Z])', r'*\1', user_input)
+    user_input = user_input.replace('sqrt', 'sp.sqrt')
+    return user_input
+
+
+def plot_equation(equation):
+    equation = fix(equation)
+    expr = sp.sympify(equation, locals={'sp': sp})
+    f_plot = sp.lambdify(x, expr, 'numpy')
+    x_values = np.linspace(-10, 10, 400)
+    y_values = f_plot(x_values)
+    return x_values, y_values
+
+
+def draw_graph(x_vals, y_vals):
+    for i in range(len(x_vals) - 1):
+        if np.isnan(y_vals[i]) or np.isnan(y_vals[i + 1]):
+            continue
+        x1 = int(WIDTH // 2 + x_vals[i] * 30)
+        y1 = int(HEIGHT // 2 - y_vals[i] * 30)
+        x2 = int(WIDTH // 2 + x_vals[i + 1] * 30)
+        y2 = int(HEIGHT // 2 - y_vals[i + 1] * 30)
+        pygame.draw.line(screen, RED, (x1, y1 + adjust_y), (x2, y2 + adjust_y), 2)
+    pygame.display.flip()
+
+
+def render_text(text, x, y, font_color=WHITE):
+    label = font.render(text, True, font_color)
+    screen.blit(label, (x, y))
+
+
+def render_title(text, x, y, font_color=WHITE):
+    label = titlefont.render(text, True, font_color)
+    screen.blit(label, (x, y))
+
+
+def check(equation, gravity, mass, drag):
+    # Check for missing inputs
+    if not equation or not gravity or not mass or not drag:
+        return "missing text"
+
+    # Test the equation parsing and calculation
+    try:
+        equation = fix(equation)
+        expr = sp.sympify(equation, locals={'sp': sp})
+        f = sp.lambdify(x, expr, 'numpy')
+        x_vals = np.array([-1, 0, 1])
+        y_vals = f(x_vals)
+        for items in y_vals:
+            try:
+                float(items)
+            except ValueError:
+                return "invalid function"
+    except Exception as e:
+        return "invalid function"
+
+    # Check numeric validity for mass, gravity, and drag
+    try:
+        gravity = float(gravity)
+        mass = float(mass)
+        drag = float(drag)
+    except ValueError:
+        return "invalid inputs"
+
+    # Check if mass, gravity and drag fall in an adequate range
+    if float(drag) < 0 or float(gravity) <= 0 or float(mass) <= 0:
+        return "out of range"
+
+    # All values given are good
+    return "valid"
+
+
+def render():
+
+    # INITIALIZE BACKGROUND + TITLES
+    drawbackground()
+    render_title("SETTINGS", 20, 20)
+    pygame.draw.line(screen, WHITE, (510, 90), (510, 470))
+    render_title("CONDITIONS", 522, 20)
+
+    # Get FUNCTION
+    render_text("Enter equation (in terms of x):", 20, 100)
+    render_text("f(x) = ", 20, 150)
+    pygame.draw.rect(screen, fxcol, fxrect, 2)
+    render_text(input_function, 80, 150)
+
+    # Get GRAVITY
+    render_text("Gravitational Field (m/s²) = ", 20, 222)
+    pygame.draw.rect(screen, gravcol, gravrect, 2)
+    render_text(input_gravity, 275, 222)
+
+    # Get MASS
+    render_text("Mass of Object (kg) = ", 20, 322)
+    pygame.draw.rect(screen, masscol, massrect, 2)
+    render_text(input_mass, 275, 322)
+
+    # Get DRAG
+    render_text("Drag Constant (kg/s) = ", 20, 422)
+    pygame.draw.rect(screen, dragcol, dragrect, 2)
+    render_text(input_drag, 275, 422)
+
+    # Start Button
+    pygame.draw.rect(screen, btncol, buttonrect, False, 2)
+    screen.blit(buttontext, text_rect)
+
+    # In case VALUES given by user are INVALID
+    render_text(inputstatus, 20, 492, RED)
+
+    # CONDITIONS
+    render_text("Only x is accepted as a variable. ", 522, 150)
+    render_text("Gravity must be bigger than 0. ", 522, 222)
+    render_text("Mass must be bigger than 0.", 522, 322)
+    render_text("Drag cannot be negative.", 522, 422)
+
+
+def dropmarble(screen, color, pos, r):  # !!!PROBLEM!!!
+    pygame.draw.circle(screen, color, pos, r)
+
+
+def rendergame():
+    drawbackground()
+    x_vals, y_vals = plot_equation(expression)
+    draw_graph(x_vals, y_vals)
+    render_text("Current Equation: y = " + str(expression), 20, 20)
+    back_rect = pygame.Rect(590, 12, 200, 50)
+    pygame.draw.rect(screen, DARKGRAY, back_rect)
+    render_text("Back to Setting", 630, 20, GRAY)
+    render_text("1 mouse click = 1 marble dropped", 200, 50)
+    render_text("Wait till marble disappears before clicking again", 150, 80)
+    pygame.display.flip()
+
+if __name__ == '__main__':
+
     pygame.init()
 
-    # Window
-    WIDTH, HEIGHT = 808, 600
-    screen = pygame.display.set_mode((WIDTH, HEIGHT))
-    pygame.display.set_caption("Marble Drop")
-
-    # Colors
-    WHITE = (255, 255, 255)
-    BLACK = (0, 0, 0)
-    RED = (255, 0, 0)
-    GRAY = (192, 192, 192)
-    DARKGRAY = (150, 150, 150)
-    BTNHOVERCOL = (156, 230, 230)
-
-    # Fonts
-    font = pygame.font.SysFont("arial", 24)
-    buttonfont = pygame.font.SysFont("moderno20", 28)
-    titlefont = pygame.font.SysFont("arial", 52)
-
-    # Settings Variable
-    input_function = ""
-    input_mass = ""
-    input_drag = ""
-    input_gravity = ""
-
-    # Data box
-    fxrect = pygame.Rect(75, 150, 417, 35)
-    gravrect = pygame.Rect(272, 222, 222, 35)
-    massrect = pygame.Rect(272, 322, 222, 35)
-    dragrect = pygame.Rect(272, 422, 222, 35)
-    buttonrect = pygame.Rect(556, 492, 202, 75)
-    buttontext = buttonfont.render("Initiate Marble Drop", True, BLACK)
-    text_rect = buttontext.get_rect(center=buttonrect.center)
-
-    # Data
-    functionactive = False
-    gravityactive = False
-    massactive = False
-    dragactive = False
-    inputstatus = ""
-
-    # What is currently running
-    draw = False
-    notgraphing = True
-    maingame = False
-
-    # Final Values
-    mass = ""
-    gravity = ""
-    drag = ""
-
-    # Data box colors
-    fxcol = RED
-    gravcol = RED
-    masscol = RED
-    dragcol = RED
-    btncol = DARKGRAY
-
-    # MISC
-    expression = None
-    x = sp.symbols('x')
-    adjust_x = 100
-    adjust_y = 100
-
-    circleimag = pygame.image.load("circleimag.png")
-    circleimag = pygame.transform.scale(circleimag, (22, 22))
-
-
-
-
-    def drawbackground():
-        bgimage = pygame.image.load("background.jpg")
-        bgimage = pygame.transform.scale(bgimage, (WIDTH, HEIGHT))
-        screen.blit(bgimage, (0, 0))
-
-    drawbackground()
-
-    def fix(user_input):
-        user_input = re.sub(r'(?<=\d)([a-zA-Z])', r'*\1', user_input)
-        user_input = user_input.replace('sqrt', 'sp.sqrt')
-        return user_input
-
-    def plot_equation(equation):
-        try:
-            equation = fix(equation)
-            expr = sp.sympify(equation, locals={'sp': sp})
-            f = sp.lambdify(x, expr, 'numpy')
-            x_vals = np.linspace(-10, 10, 400)
-            y_vals = f(x_vals)
-            return x_vals, y_vals
-        except Exception as e:
-            return None, None
-
-    def draw_graph(x_vals, y_vals):
-        for i in range(len(x_vals) - 1):
-            if np.isnan(y_vals[i]) or np.isnan(y_vals[i + 1]):
-                continue
-            x1 = int(WIDTH // 2 + x_vals[i] * 30)
-            y1 = int(HEIGHT // 2 - y_vals[i] * 30)
-            x2 = int(WIDTH // 2 + x_vals[i + 1] * 30)
-            y2 = int(HEIGHT // 2 - y_vals[i + 1] * 30)
-            pygame.draw.line(screen, RED, (x1, y1 + adjust_y), (x2, y2 + adjust_y), 2)
-        pygame.display.flip()
-
-    def render_text(text, x, y, font_color=WHITE):
-        label = font.render(text, True, font_color)
-        screen.blit(label, (x, y))
-
-    def render_title(text, x, y, font_color=WHITE):
-        label = titlefont.render(text, True, font_color)
-        screen.blit(label, (x, y))
-
-    def check(equation, gravity, mass, drag):
-        # Check for missing inputs
-        if not equation or not gravity or not mass or not drag:
-            return "missing text"
-
-        # Test the equation parsing and calculation
-        try:
-            equation = fix(equation)
-            expr = sp.sympify(equation, locals={'sp': sp})
-            f = sp.lambdify(x, expr, 'numpy')
-            x_vals = np.array([-1, 0, 1])
-            y_vals = f(x_vals)
-            for items in y_vals:
-                try:
-                    float(items)
-                except ValueError:
-                    return "invalid function"
-        except Exception as e:
-            return "invalid function"
-
-        # Check numeric validity for mass, gravity, and drag
-        try:
-            gravity = float(gravity)
-            mass = float(mass)
-            drag = float(drag)
-        except ValueError:
-            return "invalid inputs"
-
-        # Check if mass, gravity and drag fall in an adequate range
-        if float(drag) < 0 or float(gravity) <= 0 or float(mass) <= 0:
-            return "out of range"
-
-        # All values given are good
-        return "valid"
-
-    def render():
-
-        # INITIALIZE BACKGROUND + TITLES
-        drawbackground()
-        render_title("SETTINGS", 20, 20)
-        pygame.draw.line(screen, WHITE, (510, 90), (510, 470))
-        render_title("CONDITIONS", 522, 20)
-
-        # Get FUNCTION
-        render_text("Enter equation (in terms of x):", 20, 100)
-        render_text("f(x) = ", 20, 150)
-        pygame.draw.rect(screen, fxcol, fxrect, 2)
-        render_text(input_function, 80, 150)
-
-        # Get GRAVITY
-        render_text("Gravitational Field (m/sÂ²) = ", 20, 222)
-        pygame.draw.rect(screen, gravcol, gravrect, 2)
-        render_text(input_gravity, 275, 222)
-
-        # Get MASS
-        render_text("Mass of Object (kg) = ", 20, 322)
-        pygame.draw.rect(screen, masscol, massrect, 2)
-        render_text(input_mass, 275, 322)
-
-        # Get DRAG
-        render_text("Drag Constant (kg/s) = ", 20, 422)
-        pygame.draw.rect(screen, dragcol, dragrect, 2)
-        render_text(input_drag, 275, 422)
-
-        # Start Button
-        pygame.draw.rect(screen, btncol, buttonrect, False, 2)
-        screen.blit(buttontext, text_rect)
-
-        # In case VALUES given by user are INVALID
-        render_text(inputstatus, 20, 492, RED)
-
-        # CONDITIONS
-        render_text("Only x is accepted as a variable. ", 522, 150)
-        render_text("Gravity must be bigger than 0. ", 522, 222)
-        render_text("Mass must be bigger than 0.", 522, 322)
-        render_text("Drag cannot be negative.", 522, 422)
-
-    def dropmarble(screen, color, pos, r):  # !!!PROBLEM!!!
-        pygame.draw.circle(screen, color, pos, r)
-    def rendergame():
-        drawbackground()
-        x_vals, y_vals = plot_equation(expression)
-        draw_graph(x_vals, y_vals)
-        render_text("Current Equation: y = " + str(expression), 20, 20)
-        pygame.display.flip()
-    menu_running = True
-    while menu_running:
+    while True:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
+                sys.exit()
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if fxrect.collidepoint(event.pos):  # Activate FUNCTION Textbox
                     fxcol = GRAY
@@ -318,120 +331,133 @@ def main():
                 x_vals, y_vals = plot_equation(expression)
                 if x_vals is not None and y_vals is not None:
                     notgraphing = False
-                    menu_running = False
+                    maingame = True
 
         if notgraphing:  # By default + MENU
             render()
 
         pygame.display.update()
 
-    maingame = True
-    drawbackground()
-    while maingame:
-        rendergame()
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-            if event.type == pygame.MOUSEBUTTONDOWN:
-                mousepos = pygame.mouse.get_pos()
-                expression = fix(expression)
-                f_sympify = sp.sympify(expression, locals={'sp': sp})
+        if maingame:
+            rendergame()
 
-                # Terrain Function
-                f = sp.lambdify(x, f_sympify, 'numpy')  # Define an expression as a terrain
-                df_expr = sp.diff(f_sympify, x)  # Symbolic derivative
-                df = sp.lambdify(x, df_expr, 'numpy')  # Numerical derivative
+        while maingame:
 
-                time = 0
-                MAX_TIME = 10
-                INCREMENT = 0.05
-
-                # predefined inputs
-                velocity_x = 0
-                velocity_y = 0
-                position_x = WIDTH - float(mousepos[0])
-                position_y = f(position_x)
-
-                # functions
-
-                def formula_1x(vx, b, m, g, a, t, xp):
-                    return (-(m * g * np.sin(a) / b) * t - (m / b) * (vx - (m * g * np.sin(a)) / b) *
-                    np.exp(-b / m * t) + xp) * np.cos(a)
-
-                def formula_1y(vy, b, m, g, a, t, y):
-                    return (-(m * g * np.sin(a) / b) * t - (m / b) * (vy - (m * g * np.sin(a)) / b) *
-                    np.exp(-b / m * t) + y) * np.sin(a)
-
-                def formula_1vx(vx, b, m, g, a, t):
-                    return (- (m * g * np.sin(a)) / b + (vx - (m * g * np.sin(a)) / b) * np.exp(-b * t / m)) * np.cos(a)
-
-                def formula_1vy(vy, b, m, g, a, t):
-                    return (-(m * g * np.sin(a)) / b + (vy - (m * g * np.sin(a)) / b) * np.exp(-b * t / m)) * np.sin(a)
-
-                def formula_2x(vx, b, m, t, xp):
-                    return xp - m * vx / b * math.e ** (-b * t / m)
-
-                def formula_2vx(vx, b, m, t):
-                    return vx * math.e ** (-b * t / m)
-
-                def formula_3x(vx, g, a, t, xp):
-                    return xp + vx * t + g * math.cos(a) * math.sin(a) * t ** 2 / 2
-
-                def formula_3y(vy, g, a, t, y):
-                    return y + vy * t - g * math.sin(a) ** 2 * t ** 2 / 2
-
-                def formula_3vx(vx, g, a, t):
-                    return vx + g * math.cos(a) * math.sin(a) * t
-
-                def formula_3vy(vy, g, a, t):
-                    return (vy - g * math.sin(a) ** 2 * t)
-
-                def formula_4x(xp, vx, t):
-                    return (xp + vx * t)
-
-                def print_coordinates(xp, y):
-                    print(f"({xp},{y})")
-
-                oper_x = (WIDTH//2 - position_x)//30
-                # Main loop
-                while time <= MAX_TIME:
-                    slope = df_expr.subs(x, oper_x)
-                    theta = math.atan(slope)
-                    if drag != 0 and theta != 0:
-                        oper_x += velocity_x * INCREMENT + 0.001
-                        position_y = HEIGHT//2 - f(oper_x) * 30
-                        velocity_x = formula_1vx(velocity_x, drag, mass, gravity, theta, INCREMENT)
-                        velocity_y = formula_1vy(velocity_y, drag, mass, gravity, theta, INCREMENT)
-                    elif drag != 0 and theta == 0:
-                        oper_x = formula_2x(velocity_x, drag, mass, INCREMENT, oper_x)
-                        velocity_x = formula_2vx(velocity_x, drag, mass, INCREMENT)
-                    elif drag == 0 and theta != 0:
-                        oper_x = formula_3x(velocity_x, gravity, theta, INCREMENT, oper_x)
-                        position_y = f(oper_x)
-                        velocity_x = formula_3vx(velocity_x, gravity, theta, INCREMENT)
-                        velocity_y = formula_3vy(velocity_y, gravity, theta, INCREMENT)
-                    else:
-                        oper_x = formula_4x(oper_x, velocity_x, INCREMENT)
-
-
-                    outputx = int(WIDTH - (WIDTH//2 - oper_x * 30))
-                    outputy = int(position_y + 90)
-
-                    if outputx > WIDTH or outputy > HEIGHT:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    if back_rect.collidepoint(event.pos):
+                        maingame = False
+                        notgraphing = True
+                        draw = False
                         break
 
-                    screen.blit(circleimag, (outputx - circleimag.get_width() // 2, outputy - circleimag.get_height() // 2))
-                    pygame.display.flip()
-                    pygame.time.wait(50)
-                    rendergame()
-                    time += INCREMENT
+                    mousepos = pygame.mouse.get_pos()
+                    expression = fix(expression)
+                    f_sympify = sp.sympify(expression, locals={'sp': sp})
 
+                    # Terrain Function
+                    f = sp.lambdify(x, f_sympify, 'numpy')  # Define an expression as a terrain
+                    df_expr = sp.diff(f_sympify, x)  # Symbolic derivative
+                    df = sp.lambdify(x, df_expr, 'numpy')  # Numerical derivative
 
+                    time = 0
+                    MAX_TIME = 5
+                    INCREMENT = 0.01
+
+                    # predefined inputs
+                    velocity_x = 0
+                    velocity_y = 0
+                    position_x = WIDTH - float(mousepos[0])
+                    position_y = f(position_x)
+
+                    # functions
+
+                    def formula_1x(vx, b, m, g, a, t, xp):
+                        return (-(m * g * np.sin(a) / b) * t - (m / b) * (vx - (m * g * np.sin(a)) / b) *
+                        np.exp(-b / m * t) + xp) * np.cos(a)
+
+                    def formula_1y(vy, b, m, g, a, t, y):
+                        return (-(m * g * np.sin(a) / b) * t - (m / b) * (vy - (m * g * np.sin(a)) / b) *
+                        np.exp(-b / m * t) + y) * np.sin(a)
+
+                    def formula_1vx(vx, b, m, g, a, t):
+                        return (- (m * g * np.sin(a)) / b + (vx - (m * g * np.sin(a)) / b) *
+                                np.exp(-b * t / m)) * np.cos(a)
+
+                    def formula_1vy(vy, b, m, g, a, t):
+                        return (-(m * g * np.sin(a)) / b + (vy - (m * g * np.sin(a)) / b) * np.exp(-b * t / m)) * np.sin(a)
+
+                    def formula_2x(vx, b, m, t, xp):
+                        return xp - m * vx / b * math.e ** (-b * t / m)
+
+                    def formula_2vx(vx, b, m, t):
+                        return vx * math.e ** (-b * t / m)
+
+                    def formula_3x(vx, g, a, t, xp):
+                        return xp + vx * t + g * math.cos(a) * math.sin(a) * t ** 2 / 2
+
+                    def formula_3y(vy, g, a, t, y):
+                        return y + vy * t - g * math.sin(a) ** 2 * t ** 2 / 2
+
+                    def formula_3vx(vx, g, a, t):
+                        return vx + g * math.cos(a) * math.sin(a) * t
+
+                    def formula_3vy(vy, g, a, t):
+                        return (vy - g * math.sin(a) ** 2 * t)
+
+                    def formula_4x(xp, vx, t):
+                        return (xp + vx * t)
+
+                    def print_coordinates(xp, y):
+                        print(f"({xp},{y})")
+
+                    oper_x = (WIDTH//2 - position_x)//30
+                    # Main loop
+                    while time <= MAX_TIME and maingame:
+                        slope = df_expr.subs(x, oper_x)
+                        theta = math.atan(slope)
+                        if drag != 0 and theta != 0:
+                            oper_x += velocity_x * INCREMENT + 0.001
+                            position_y = HEIGHT//2 - f(oper_x) * 30
+                            velocity_x = formula_1vx(velocity_x, drag, mass, gravity, theta, time)
+                            velocity_y = formula_1vy(velocity_y, drag, mass, gravity, theta, INCREMENT)
+                            flag = True
+                        elif drag != 0 and theta == 0:
+                            oper_x = formula_2x(velocity_x, drag, mass, INCREMENT, oper_x)
+                            velocity_x = formula_2vx(velocity_x, drag, mass, INCREMENT)
+                            flag = True
+                        elif drag == 0 and theta != 0:
+                            oper_x = formula_3x(velocity_x, gravity, theta, INCREMENT, oper_x)
+                            position_y = HEIGHT//2 + f(oper_x) * 30
+                            velocity_x = formula_3vx(velocity_x, gravity, theta, INCREMENT)
+                            velocity_y = formula_3vy(velocity_y, gravity, theta, INCREMENT)
+                            flag = False
+                        else:
+                            oper_x = formula_4x(oper_x, velocity_x, INCREMENT)
+                            flag = False
+
+                        if flag:
+                            outputx = int(WIDTH - (WIDTH//2 - oper_x * 30))
+                            outputy = int(position_y + 88)
+                        else:
+                            outputx = int(WIDTH // 2 - oper_x * 30)
+                            outputy = int(position_y + 88)
+                        if np.isnan(outputx) or np.isnan(outputy):
+                            continue
+
+                        if outputx > WIDTH or outputy > HEIGHT:
+                            break
+
+                        screen.blit(circleimag, (outputx - circleimag.get_width() // 2, outputy - circleimag.get_height() // 2))
+                        pygame.display.flip()
+                        pygame.time.wait(10)
+                        rendergame()
+                        time += INCREMENT
+
+            if not maingame:
+                break
 
         pygame.display.update()
-
-
-if __name__ == '__main__':
-    pygame.init()
-    main()
-    pygame.quit()
