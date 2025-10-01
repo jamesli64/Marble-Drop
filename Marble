@@ -57,6 +57,7 @@ inputstatus = ""
 draw = False
 notgraphing = True
 maingame = False
+clicking_enabled = True
 
 # Final Values
 mass = ""
@@ -347,7 +348,8 @@ if __name__ == '__main__':
                 if event.type == pygame.QUIT:
                     pygame.quit()
                     sys.exit()
-                if event.type == pygame.MOUSEBUTTONDOWN:
+                if event.type == pygame.MOUSEBUTTONDOWN and clicking_enabled == True:
+                    click_enabled = False
                     if back_rect.collidepoint(event.pos):
                         maingame = False
                         notgraphing = True
@@ -406,7 +408,7 @@ if __name__ == '__main__':
                         return vx + g * math.cos(a) * math.sin(a) * t
 
                     def formula_3vy(vy, g, a, t):
-                        return (vy - g * math.sin(a) ** 2 * t)
+                        return vy - g * math.sin(a) ** 2 * t
 
                     def formula_4x(xp, vx, t):
                         return (xp + vx * t)
@@ -432,8 +434,8 @@ if __name__ == '__main__':
                         elif drag == 0 and theta != 0:
                             oper_x = formula_3x(velocity_x, gravity, theta, INCREMENT, oper_x)
                             position_y = HEIGHT//2 + f(oper_x) * 30
-                            velocity_x = formula_3vx(velocity_x, gravity, theta, INCREMENT)
-                            velocity_y = formula_3vy(velocity_y, gravity, theta, INCREMENT)
+                            velocity_x = formula_3vx(velocity_x, gravity, INCREMENT, time)
+                            velocity_y = formula_3vy(velocity_y, gravity, INCREMENT, time)
                             flag = False
                         else:
                             oper_x = formula_4x(oper_x, velocity_x, INCREMENT)
@@ -456,6 +458,7 @@ if __name__ == '__main__':
                         pygame.time.wait(10)
                         rendergame()
                         time += INCREMENT
+                    click_enabled = True
 
             if not maingame:
                 break
